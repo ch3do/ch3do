@@ -146,8 +146,9 @@ export async function POST(req: NextRequest) {
         where: { id: company.id },
         data: { scrapingStatus: "FAILED" },
       })
-      console.error("Scraping error:", error)
-      return NextResponse.json({ error: "Scraping failed", companyId: company.id }, { status: 500 })
+      const errorMessage = error instanceof Error ? error.message : "Unknown error"
+      console.error("Scraping error:", errorMessage)
+      return NextResponse.json({ error: `Analisi fallita: ${errorMessage}`, companyId: company.id }, { status: 500 })
     }
   } catch (error) {
     console.error("API error:", error)
