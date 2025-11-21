@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
+import { getSession } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { scrapeWebsite } from "@/services/scraper"
 import { extractBusinessDna } from "@/services/gemini"
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    const user = await getSession()
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -17,7 +16,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Website URL required" }, { status: 400 })
     }
 
-    // Validate URL
     let url: URL
     try {
       url = new URL(websiteUrl.startsWith('http') ? websiteUrl : `https://${websiteUrl}`)
@@ -25,22 +23,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid URL" }, { status: 400 })
     }
 
-    // Create company record
     const company = await prisma.company.create({
       data: {
-        userId: session.user.id,
+        userId: user.id,
         name: url.hostname.replace('www.', ''),
         website: url.href,
         scrapingStatus: "IN_PROGRESS",
       },
     })
 
-    // Start scraping (in production, this would be a background job)
     try {
       const scrapedData = await scrapeWebsite(url.href)
       const dnaData = await extractBusinessDna(scrapedData)
 
-      // Create BusinessDna record
       await prisma.businessDna.create({
         data: {
           companyId: company.id,
@@ -48,53 +43,54 @@ export async function POST(req: NextRequest) {
           history: dnaData.companyInfo?.history,
           mission: dnaData.companyInfo?.mission,
           vision: dnaData.companyInfo?.vision,
-          values: dnaData.companyInfo?.values || [],
+          values: JSON.stringify(dnaData.companyInfo?.values || []),
           toneOfVoice: dnaData.brand?.toneOfVoice,
           brandPersonality: dnaData.brand?.brandPersonality,
           usp: dnaData.brand?.usp,
-          competitors: dnaData.market?.competitors || [],
-          industryKeywords: dnaData.market?.industryKeywords || [],
+          competitors: JSON.stringify(dnaData.market?.competitors || []),
+          industryKeywords: JSON.stringify(dnaData.market?.industryKeywords || []),
           email: dnaData.companyInfo?.email || scrapedData.metadata.emails[0],
           phone: dnaData.companyInfo?.phone || scrapedData.metadata.phones[0],
           address: dnaData.companyInfo?.address,
-          socialLinks: dnaData.companyInfo?.socialLinks || scrapedData.metadata.socialLinks,
-          rawScrapedData: JSON.parse(JSON.stringify(scrapedData)),
+          socialLinks: JSON.stringify(dnaData.companyInfo?.socialLinks || scrapedData.metadata.socialLinks),
+          rawScrapedData: JSON.stringify(scrapedData),
         },
       })
 
-      // Create target groups
       if (dnaData.targetGroups?.length) {
-        await prisma.targetGroup.createMany({
-          data: dnaData.targetGroups.map((tg: Record<string, unknown>) => ({
-            companyId: company.id,
-            name: tg.name as string || "Target Group",
-            description: tg.description as string,
-            ageRange: tg.ageRange as string,
-            interests: (tg.interests as string[]) || [],
-            painPoints: (tg.painPoints as string[]) || [],
-            goals: (tg.goals as string[]) || [],
-            behaviors: [],
-            objections: [],
-          })),
-        })
+        for (const tg of dnaData.targetGroups) {
+          await prisma.targetGroup.create({
+            data: {
+              companyId: company.id,
+              name: (tg.name as string) || "Target Group",
+              description: tg.description as string,
+              ageRange: tg.ageRange as string,
+              interests: JSON.stringify(tg.interests || []),
+              painPoints: JSON.stringify(tg.painPoints || []),
+              goals: JSON.stringify(tg.goals || []),
+              behaviors: JSON.stringify([]),
+              objections: JSON.stringify([]),
+            },
+          })
+        }
       }
 
-      // Create products
       if (dnaData.products?.length) {
-        await prisma.product.createMany({
-          data: dnaData.products.map((p: Record<string, unknown>) => ({
-            companyId: company.id,
-            name: p.name as string || "Product",
-            description: p.description as string,
-            category: p.category as string,
-            features: (p.features as string[]) || [],
-            benefits: (p.benefits as string[]) || [],
-            differentiators: [],
-          })),
-        })
+        for (const p of dnaData.products) {
+          await prisma.product.create({
+            data: {
+              companyId: company.id,
+              name: (p.name as string) || "Product",
+              description: p.description as string,
+              category: p.category as string,
+              features: JSON.stringify(p.features || []),
+              benefits: JSON.stringify(p.benefits || []),
+              differentiators: JSON.stringify([]),
+            },
+          })
+        }
       }
 
-      // Create default guidelines
       await prisma.guideline.createMany({
         data: [
           {
@@ -134,7 +130,6 @@ export async function POST(req: NextRequest) {
         ],
       })
 
-      // Update company status
       await prisma.company.update({
         where: { id: company.id },
         data: {

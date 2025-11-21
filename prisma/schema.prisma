@@ -3,59 +3,19 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-// Auth models
-model Account {
-  id                String  @id @default(cuid())
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String? @db.Text
-  session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-}
-
-model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  accounts      Account[]
-  sessions      Session[]
-  companies     Company[]
-  createdAt     DateTime  @default(now())
+  id        String    @id @default(cuid())
+  username  String    @unique
+  password  String
+  name      String?
+  companies Company[]
+  createdAt DateTime  @default(now())
 }
 
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
-}
-
-// Business DNA models
 model Company {
   id        String   @id @default(cuid())
   userId    String
@@ -71,18 +31,11 @@ model Company {
   guidelines     Guideline[]
   contents       Content[]
 
-  scrapingStatus ScrapingStatus @default(PENDING)
+  scrapingStatus String   @default("PENDING")
   scrapedAt      DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-}
-
-enum ScrapingStatus {
-  PENDING
-  IN_PROGRESS
-  COMPLETED
-  FAILED
 }
 
 model BusinessDna {
@@ -90,25 +43,25 @@ model BusinessDna {
   companyId String  @unique
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  description      String?  @db.Text
-  history          String?  @db.Text
-  mission          String?  @db.Text
-  vision           String?  @db.Text
-  values           String[]
+  description      String?
+  history          String?
+  mission          String?
+  vision           String?
+  values           String?  // JSON string
 
-  toneOfVoice      String?  @db.Text
-  brandPersonality String?  @db.Text
+  toneOfVoice      String?
+  brandPersonality String?
 
-  usp              String?  @db.Text
-  competitors      String[]
-  industryKeywords String[]
+  usp              String?
+  competitors      String?  // JSON string
+  industryKeywords String?  // JSON string
 
   email            String?
   phone            String?
   address          String?
-  socialLinks      Json?
+  socialLinks      String?  // JSON string
 
-  rawScrapedData   Json?
+  rawScrapedData   String?  // JSON string
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -120,7 +73,7 @@ model TargetGroup {
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   name             String
-  description      String?  @db.Text
+  description      String?
 
   ageRange         String?
   gender           String?
@@ -129,13 +82,13 @@ model TargetGroup {
   education        String?
   occupation       String?
 
-  interests        String[]
-  painPoints       String[]
-  goals            String[]
-  behaviors        String[]
+  interests        String?  // JSON string
+  painPoints       String?  // JSON string
+  goals            String?  // JSON string
+  behaviors        String?  // JSON string
 
-  buyingMotivation String?  @db.Text
-  objections       String[]
+  buyingMotivation String?
+  objections       String?  // JSON string
 
   contents         Content[]
 
@@ -149,16 +102,16 @@ model Product {
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   name             String
-  description      String?  @db.Text
+  description      String?
   category         String?
 
-  features         String[]
-  benefits         String[]
+  features         String?  // JSON string
+  benefits         String?  // JSON string
   price            String?
   imageUrl         String?
 
-  targetAudience   String?  @db.Text
-  differentiators  String[]
+  targetAudience   String?
+  differentiators  String?  // JSON string
 
   contents         Content[]
 
@@ -172,15 +125,15 @@ model Guideline {
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   name             String
-  type             GuidelineType
-  description      String?  @db.Text
+  type             String
+  description      String?
 
-  promptTemplate   String   @db.Text
+  promptTemplate   String
 
   minLength        Int?
   maxLength        Int?
-  requiredElements String[]
-  avoidElements    String[]
+  requiredElements String?  // JSON string
+  avoidElements    String?  // JSON string
 
   style            String?
   format           String?
@@ -191,17 +144,6 @@ model Guideline {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-}
-
-enum GuidelineType {
-  BLOG_ARTICLE
-  SOCIAL_POST
-  EMAIL
-  LANDING_PAGE
-  AD_COPY
-  PRODUCT_DESCRIPTION
-  IMAGE_GENERATION
-  CUSTOM
 }
 
 model Content {
@@ -220,33 +162,16 @@ model Content {
 
   title         String
   topic         String?
-  body          String       @db.Text
+  body          String
 
   imageUrl      String?
-  imagePrompt   String?      @db.Text
+  imagePrompt   String?
 
-  type          ContentType
-  status        ContentStatus @default(DRAFT)
+  type          String
+  status        String    @default("DRAFT")
 
-  generationContext Json?
+  generationContext String?  // JSON string
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-}
-
-enum ContentType {
-  BLOG_ARTICLE
-  SOCIAL_POST
-  EMAIL
-  LANDING_PAGE
-  AD_COPY
-  PRODUCT_DESCRIPTION
-  IMAGE
-}
-
-enum ContentStatus {
-  DRAFT
-  REVIEW
-  APPROVED
-  PUBLISHED
 }

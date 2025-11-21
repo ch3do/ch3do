@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useSession } from "next-auth/react"
+import { useAuth } from "@/components/Providers"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import {
@@ -68,7 +68,7 @@ interface Company {
 }
 
 export default function CompanyPage() {
-  const { data: session, status } = useSession()
+  const { user, loading: authLoading } = useAuth()
   const params = useParams()
   const router = useRouter()
   const [company, setCompany] = useState<Company | null>(null)
@@ -81,16 +81,16 @@ export default function CompanyPage() {
   })
 
   useEffect(() => {
-    if (status === "unauthenticated") {
+    if (!authLoading && !user) {
       router.push("/")
     }
-  }, [status, router])
+  }, [authLoading, user, router])
 
   useEffect(() => {
-    if (session && params.id) {
+    if (user && params.id) {
       fetchCompany()
     }
-  }, [session, params.id])
+  }, [user, params.id])
 
   const fetchCompany = async () => {
     try {
@@ -110,7 +110,7 @@ export default function CompanyPage() {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }))
   }
 
-  if (loading || status === "loading") {
+  if (loading || authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-900">
         <Loader2 className="w-8 h-8 animate-spin text-purple-400" />
