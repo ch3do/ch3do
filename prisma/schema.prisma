@@ -1,0 +1,252 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Auth models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  companies     Company[]
+  createdAt     DateTime  @default(now())
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Business DNA models
+model Company {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name           String
+  website        String
+  logo           String?
+
+  businessDna    BusinessDna?
+  targetGroups   TargetGroup[]
+  products       Product[]
+  guidelines     Guideline[]
+  contents       Content[]
+
+  scrapingStatus ScrapingStatus @default(PENDING)
+  scrapedAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum ScrapingStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+model BusinessDna {
+  id        String  @id @default(cuid())
+  companyId String  @unique
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  description      String?  @db.Text
+  history          String?  @db.Text
+  mission          String?  @db.Text
+  vision           String?  @db.Text
+  values           String[]
+
+  toneOfVoice      String?  @db.Text
+  brandPersonality String?  @db.Text
+
+  usp              String?  @db.Text
+  competitors      String[]
+  industryKeywords String[]
+
+  email            String?
+  phone            String?
+  address          String?
+  socialLinks      Json?
+
+  rawScrapedData   Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TargetGroup {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name             String
+  description      String?  @db.Text
+
+  ageRange         String?
+  gender           String?
+  location         String?
+  income           String?
+  education        String?
+  occupation       String?
+
+  interests        String[]
+  painPoints       String[]
+  goals            String[]
+  behaviors        String[]
+
+  buyingMotivation String?  @db.Text
+  objections       String[]
+
+  contents         Content[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Product {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name             String
+  description      String?  @db.Text
+  category         String?
+
+  features         String[]
+  benefits         String[]
+  price            String?
+  imageUrl         String?
+
+  targetAudience   String?  @db.Text
+  differentiators  String[]
+
+  contents         Content[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Guideline {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name             String
+  type             GuidelineType
+  description      String?  @db.Text
+
+  promptTemplate   String   @db.Text
+
+  minLength        Int?
+  maxLength        Int?
+  requiredElements String[]
+  avoidElements    String[]
+
+  style            String?
+  format           String?
+
+  contents         Content[]
+
+  isDefault        Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum GuidelineType {
+  BLOG_ARTICLE
+  SOCIAL_POST
+  EMAIL
+  LANDING_PAGE
+  AD_COPY
+  PRODUCT_DESCRIPTION
+  IMAGE_GENERATION
+  CUSTOM
+}
+
+model Content {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  targetGroupId String?
+  targetGroup   TargetGroup? @relation(fields: [targetGroupId], references: [id])
+
+  productId     String?
+  product       Product?     @relation(fields: [productId], references: [id])
+
+  guidelineId   String?
+  guideline     Guideline?   @relation(fields: [guidelineId], references: [id])
+
+  title         String
+  topic         String?
+  body          String       @db.Text
+
+  imageUrl      String?
+  imagePrompt   String?      @db.Text
+
+  type          ContentType
+  status        ContentStatus @default(DRAFT)
+
+  generationContext Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum ContentType {
+  BLOG_ARTICLE
+  SOCIAL_POST
+  EMAIL
+  LANDING_PAGE
+  AD_COPY
+  PRODUCT_DESCRIPTION
+  IMAGE
+}
+
+enum ContentStatus {
+  DRAFT
+  REVIEW
+  APPROVED
+  PUBLISHED
+}
