@@ -41,13 +41,12 @@ export async function POST(req: NextRequest) {
       const companyName = url.hostname.replace('www.', '').split('.')[0]
       const analysis = await analyzeWithGemini(scrapedData, companyName)
 
-      // TODO: Temporarily disabled until Prisma Client cache is cleared
       // Log AI usage for scraping
       try {
         await logUsage({
           userId: user.id,
           operation: "scraping",
-          model: "gemini-2.0-flash-exp",
+          model: "gemini-3-pro-preview",
           inputTokens: analysis.tokenUsage.input,
           outputTokens: analysis.tokenUsage.output,
           companyId: company.id,

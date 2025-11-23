@@ -70,11 +70,12 @@ interface DeepAnalysisResult {
 
 export async function analyzeWithGemini(scrapedData: ScrapedData, companyName: string): Promise<DeepAnalysisResult> {
   const model = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash-exp",
+    model: "gemini-3-pro-preview",
     generationConfig: {
-      temperature: 0.7,
+      temperature: 1.0, // Gemini 3 recommendation: keep at 1.0
       topP: 0.95,
       maxOutputTokens: 8192,
+      thinkingLevel: "high", // Use high for maximum reasoning in business analysis
     },
   })
 

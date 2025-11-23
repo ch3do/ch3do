@@ -80,13 +80,14 @@ export async function POST(req: NextRequest) {
         }
       : null
 
-    // Generate content with Gemini 2.0 Flash
+    // Generate content with Gemini 3 Pro
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash-exp",
+      model: "gemini-3-pro-preview",
       generationConfig: {
-        temperature: 0.9,
+        temperature: 1.0, // Gemini 3 recommendation: keep at 1.0
         topP: 0.95,
-        maxOutputTokens: 2048,
+        maxOutputTokens: 4096, // Increased for Gemini 3's larger context
+        thinkingLevel: "high", // Use high for best content quality
       },
     })
 
@@ -198,7 +199,7 @@ export async function POST(req: NextRequest) {
     await logUsage({
       userId: user.id,
       operation: "content_generation",
-      model: "gemini-2.0-flash-exp",
+      model: "gemini-3-pro-preview",
       inputTokens,
       outputTokens,
       companyId,
