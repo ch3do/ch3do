@@ -157,7 +157,16 @@ export default function CompanyPage() {
               </a>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {company.scrapingStatus === "COMPLETED" && (
+              <Link
+                href={`/company/${company.id}/create`}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-sm font-medium rounded-lg transition-all duration-200 shadow-lg shadow-purple-500/25"
+              >
+                <Sparkles className="w-4 h-4" />
+                Crea Copy
+              </Link>
+            )}
             <span
               className={`px-3 py-1 rounded-full text-xs font-medium ${
                 company.scrapingStatus === "COMPLETED"
