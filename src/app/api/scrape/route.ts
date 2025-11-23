@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
         await logUsage({
           userId: user.id,
           operation: "scraping",
-          model: "gemini-2.0-flash-thinking-exp-01-21",
+          model: "gemini-3-pro-preview",
           inputTokens: analysis.tokenUsage.input,
           outputTokens: analysis.tokenUsage.output,
           companyId: company.id,
