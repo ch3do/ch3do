@@ -52,10 +52,12 @@ export default function CreateContentPage() {
   const [platform, setPlatform] = useState("instagram")
   const [topic, setTopic] = useState("")
   const [additionalNotes, setAdditionalNotes] = useState("")
+  const [generateImage, setGenerateImage] = useState(true) // Default to true for image generation
 
   // Generated content
   const [generatedTitle, setGeneratedTitle] = useState("")
   const [generatedBody, setGeneratedBody] = useState("")
+  const [generatedImageUrl, setGeneratedImageUrl] = useState("")
   const [error, setError] = useState("")
   const [copied, setCopied] = useState(false)
 
@@ -97,6 +99,7 @@ export default function CreateContentPage() {
     setError("")
     setGeneratedTitle("")
     setGeneratedBody("")
+    setGeneratedImageUrl("")
 
     try {
       const res = await fetch("/api/content/generate", {
@@ -110,6 +113,7 @@ export default function CreateContentPage() {
           platform,
           topic,
           additionalNotes: additionalNotes || undefined,
+          generateImage,
         }),
       })
 
@@ -118,6 +122,7 @@ export default function CreateContentPage() {
       if (data.success) {
         setGeneratedTitle(data.content.title)
         setGeneratedBody(data.content.body)
+        setGeneratedImageUrl(data.content.imageUrl || "")
       } else {
         setError(data.error || "Errore durante la generazione")
       }
@@ -311,6 +316,23 @@ export default function CreateContentPage() {
                   />
                 </div>
 
+                {/* Generate Image Toggle */}
+                <div className="flex items-center gap-3 p-4 rounded-xl bg-purple-500/10 border border-purple-500/20">
+                  <input
+                    type="checkbox"
+                    id="generateImage"
+                    checked={generateImage}
+                    onChange={(e) => setGenerateImage(e.target.checked)}
+                    className="w-5 h-5 rounded bg-slate-800 border-slate-600 text-purple-600 focus:ring-2 focus:ring-purple-500/50 cursor-pointer"
+                  />
+                  <label htmlFor="generateImage" className="text-sm text-slate-300 cursor-pointer flex-1">
+                    <span className="font-medium text-white">Genera immagine AI</span>
+                    <span className="block text-xs text-slate-500 mt-0.5">
+                      Crea un&apos;immagine personalizzata per il contenuto (powered by Nanobanana)
+                    </span>
+                  </label>
+                </div>
+
                 {/* Submit */}
                 <button
                   type="submit"
@@ -370,6 +392,17 @@ export default function CreateContentPage() {
                       </div>
                     )}
 
+                    {/* Generated Image */}
+                    {generatedImageUrl && (
+                      <div className="rounded-xl overflow-hidden border border-white/10">
+                        <img
+                          src={generatedImageUrl}
+                          alt={generatedTitle || "Immagine generata"}
+                          className="w-full h-auto"
+                        />
+                      </div>
+                    )}
+
                     {/* Body */}
                     <div className="prose prose-invert max-w-none">
                       <div className="text-slate-300 whitespace-pre-wrap leading-relaxed">
@@ -400,6 +433,7 @@ export default function CreateContentPage() {
                       onClick={() => {
                         setGeneratedTitle("")
                         setGeneratedBody("")
+                        setGeneratedImageUrl("")
                         setTopic("")
                       }}
                       className="px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-medium rounded-xl transition-all duration-200 flex items-center gap-2 shadow-lg shadow-purple-500/25"

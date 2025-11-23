@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { GoogleGenerativeAI } from "@google/generative-ai"
 import { logUsage } from "@/lib/usage"
+import { generateImage, buildImagePrompt, shouldGenerateImage } from "@/services/nanobanana"
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
 
@@ -14,6 +15,7 @@ interface GenerateContentRequest {
   platform: string
   topic: string
   additionalNotes?: string
+  generateImage?: boolean  // New: whether to generate an image
 }
 
 export async function POST(req: NextRequest) {
@@ -24,7 +26,7 @@ export async function POST(req: NextRequest) {
     }
 
     const requestBody: GenerateContentRequest = await req.json()
-    const { companyId, targetGroupId, productId, guidelineId, platform, topic, additionalNotes } = requestBody
+    const { companyId, targetGroupId, productId, guidelineId, platform, topic, additionalNotes, generateImage } = requestBody
 
     // Verify ownership and load all context
     const company = await prisma.company.findFirst({
@@ -123,6 +125,52 @@ export async function POST(req: NextRequest) {
       body = lines.slice(1).join("\n").trim()
     }
 
+    // Generate image if requested
+    let imageUrl: string | undefined
+    let imagePrompt: string | undefined
+
+    if (generateImage && shouldGenerateImage(guideline.type, platform)) {
+      try {
+        // Build intelligent image prompt based on context
+        imagePrompt = buildImagePrompt({
+          productName: productData?.name,
+          productDescription: productData?.description || body.slice(0, 300),
+          platform,
+          topic,
+          brandPersonality: businessDna.brandPersonality,
+        })
+
+        const imageResult = await generateImage({
+          prompt: imagePrompt,
+          width: 1024,
+          height: 1024,
+        })
+
+        if (imageResult.success && imageResult.imageUrl) {
+          imageUrl = imageResult.imageUrl
+
+          // Log image generation usage
+          await logUsage({
+            userId: user.id,
+            operation: "image_generation",
+            model: "nanobanana",
+            inputTokens: 0,
+            outputTokens: 0,
+            companyId,
+            metadata: {
+              platform,
+              topic,
+              imageCount: 1,
+              prompt: imagePrompt,
+            },
+          })
+        }
+      } catch (imgError) {
+        console.error("Image generation failed:", imgError)
+        // Continue without image - non-blocking
+      }
+    }
+
     // Save to database
     const content = await prisma.content.create({
       data: {
@@ -133,17 +181,20 @@ export async function POST(req: NextRequest) {
         title,
         topic,
         body,
+        imageUrl,
+        imagePrompt,
         type: guideline.type,
         status: "DRAFT",
         generationContext: JSON.stringify({
           platform,
           additionalNotes,
           timestamp: new Date().toISOString(),
+          imageGenerated: !!imageUrl,
         }),
       },
     })
 
-    // Log usage
+    // Log text generation usage
     await logUsage({
       userId: user.id,
       operation: "content_generation",
@@ -157,6 +208,7 @@ export async function POST(req: NextRequest) {
         topic,
         hasTargetGroup: !!targetGroupId,
         hasProduct: !!productId,
+        hasImage: !!imageUrl,
       },
     })
 
@@ -166,6 +218,7 @@ export async function POST(req: NextRequest) {
         id: content.id,
         title,
         body,
+        imageUrl,
       },
     })
   } catch (error) {
