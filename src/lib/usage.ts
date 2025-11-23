@@ -1,10 +1,10 @@
 import { prisma } from "./prisma"
 
-// Pricing per 1M tokens (USD) - Updated for Gemini 3
+// Pricing per 1M tokens (USD) - Updated for Gemini models
 const PRICING = {
-  "gemini-3-pro-preview": {
-    input: 0.15,  // Estimated pricing for Gemini 3 Pro
-    output: 0.6,  // Estimated pricing for Gemini 3 Pro
+  "gemini-2.0-flash-thinking-exp-01-21": {
+    input: 0.075,  // Gemini 2.0 Flash Thinking pricing
+    output: 0.3,
   },
   "gemini-2.0-flash-exp": {
     input: 0.075,
@@ -40,7 +40,7 @@ export async function logUsage(params: LogUsageParams) {
   // Calculate cost based on model
   if (model.includes("gemini")) {
     // Select pricing based on specific model
-    const pricing = PRICING[model as keyof typeof PRICING] || PRICING["gemini-3-pro-preview"]
+    const pricing = PRICING[model as keyof typeof PRICING] || PRICING["gemini-2.0-flash-thinking-exp-01-21"]
     costUsd = (inputTokens / 1_000_000) * pricing.input + (outputTokens / 1_000_000) * pricing.output
   } else if (model === "nanobanana") {
     const imageCount = metadata?.imageCount as number || 1
