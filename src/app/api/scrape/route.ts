@@ -41,21 +41,27 @@ export async function POST(req: NextRequest) {
       const companyName = url.hostname.replace('www.', '').split('.')[0]
       const analysis = await analyzeWithGemini(scrapedData, companyName)
 
+      // TODO: Temporarily disabled until Prisma Client cache is cleared
       // Log AI usage for scraping
-      await logUsage({
-        userId: user.id,
-        operation: "scraping",
-        model: "gemini-2.0-flash-exp",
-        inputTokens: analysis.tokenUsage.input,
-        outputTokens: analysis.tokenUsage.output,
-        companyId: company.id,
-        metadata: {
-          pagesScraped: scrapedData.pages.length,
-          imagesFound: scrapedData.allImages.length,
-          productsExtracted: analysis.products.length,
-          targetGroupsExtracted: analysis.targetGroups.length,
-        },
-      })
+      try {
+        await logUsage({
+          userId: user.id,
+          operation: "scraping",
+          model: "gemini-2.0-flash-exp",
+          inputTokens: analysis.tokenUsage.input,
+          outputTokens: analysis.tokenUsage.output,
+          companyId: company.id,
+          metadata: {
+            pagesScraped: scrapedData.pages.length,
+            imagesFound: scrapedData.allImages.length,
+            productsExtracted: analysis.products.length,
+            targetGroupsExtracted: analysis.targetGroups.length,
+          },
+        })
+      } catch (error) {
+        // Non-blocking - scraping continues even if logging fails
+        console.log('Warning: Usage logging failed', error)
+      }
 
       // Step 3: Save Business DNA
       await prisma.businessDna.create({

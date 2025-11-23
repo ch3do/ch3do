@@ -42,9 +42,6 @@ export async function logUsage(params: LogUsageParams) {
     costUsd = PRICING.nanobanana.perImage * imageCount
   }
 
-  console.log('DEBUG: prisma object:', Object.keys(prisma))
-  console.log('DEBUG: prisma.usageLog exists?', 'usageLog' in prisma)
-
   await prisma.usageLog.create({
     data: {
       userId,
