@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { useAuth } from "@/components/Providers"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Building2, Plus, Loader2, ExternalLink, Users, Package, FileText, Dna, ArrowLeft } from "lucide-react"
+import { Building2, Plus, Loader2, ExternalLink, Users, Package, FileText, Dna, ArrowLeft, BarChart3 } from "lucide-react"
 
 interface Company {
   id: string
@@ -91,13 +91,22 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
-          <Link
-            href="/"
-            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-sm font-medium rounded-xl transition-all duration-200 shadow-lg shadow-purple-500/25"
-          >
-            <Plus className="w-4 h-4" />
-            Nuova azienda
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/analytics"
+              className="flex items-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium rounded-xl transition-all duration-200"
+            >
+              <BarChart3 className="w-4 h-4" />
+              Analytics
+            </Link>
+            <Link
+              href="/"
+              className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-sm font-medium rounded-xl transition-all duration-200 shadow-lg shadow-purple-500/25"
+            >
+              <Plus className="w-4 h-4" />
+              Nuova azienda
+            </Link>
+          </div>
         </div>
       </header>
 

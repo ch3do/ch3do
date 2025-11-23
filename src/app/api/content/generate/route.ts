@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { GoogleGenerativeAI } from "@google/generative-ai"
+import { logUsage } from "@/lib/usage"
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
 
@@ -101,6 +102,11 @@ export async function POST(req: NextRequest) {
     const result = await model.generateContent(prompt)
     const response = result.response.text()
 
+    // Get token usage
+    const usageMetadata = result.response.usageMetadata
+    const inputTokens = usageMetadata?.promptTokenCount || 0
+    const outputTokens = usageMetadata?.candidatesTokenCount || 0
+
     // Parse response
     let title = ""
     let body = ""
@@ -134,6 +140,23 @@ export async function POST(req: NextRequest) {
           additionalNotes,
           timestamp: new Date().toISOString(),
         }),
+      },
+    })
+
+    // Log usage
+    await logUsage({
+      userId: user.id,
+      operation: "content_generation",
+      model: "gemini-2.0-flash-exp",
+      inputTokens,
+      outputTokens,
+      companyId,
+      contentId: content.id,
+      metadata: {
+        platform,
+        topic,
+        hasTargetGroup: !!targetGroupId,
+        hasProduct: !!productId,
       },
     })
 
