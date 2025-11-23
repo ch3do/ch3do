@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { getSession } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { scrapeWebsite } from "@/services/scraper"
-import { extractBusinessDna } from "@/services/gemini"
+import { analyzeWithGemini } from "@/services/deepAnalyzer"
+import { logUsage } from "@/lib/usage"
 
 export async function POST(req: NextRequest) {
   try {
@@ -33,59 +34,94 @@ export async function POST(req: NextRequest) {
     })
 
     try {
-      const scrapedData = await scrapeWebsite(url.href)
-      const dnaData = await extractBusinessDna(scrapedData)
+      // Step 1: Scrape website with image extraction
+      const scrapedData = await scrapeWebsite(url.href, 15) // Increased to 15 pages for more coverage
 
-      await prisma.businessDna.create({
-        data: {
-          companyId: company.id,
-          description: dnaData.companyInfo?.description,
-          history: dnaData.companyInfo?.history,
-          mission: dnaData.companyInfo?.mission,
-          vision: dnaData.companyInfo?.vision,
-          values: JSON.stringify(dnaData.companyInfo?.values || []),
-          toneOfVoice: dnaData.brand?.toneOfVoice,
-          brandPersonality: dnaData.brand?.brandPersonality,
-          usp: dnaData.brand?.usp,
-          competitors: JSON.stringify(dnaData.market?.competitors || []),
-          industryKeywords: JSON.stringify(dnaData.market?.industryKeywords || []),
-          email: dnaData.companyInfo?.email || scrapedData.metadata.emails[0],
-          phone: dnaData.companyInfo?.phone || scrapedData.metadata.phones[0],
-          address: dnaData.companyInfo?.address,
-          socialLinks: JSON.stringify(dnaData.companyInfo?.socialLinks || scrapedData.metadata.socialLinks),
-          rawScrapedData: JSON.stringify(scrapedData),
+      // Step 2: Deep analysis with Gemini
+      const companyName = url.hostname.replace('www.', '').split('.')[0]
+      const analysis = await analyzeWithGemini(scrapedData, companyName)
+
+      // Log AI usage for scraping
+      await logUsage({
+        userId: user.id,
+        operation: "scraping",
+        model: "gemini-2.0-flash-exp",
+        inputTokens: analysis.tokenUsage.input,
+        outputTokens: analysis.tokenUsage.output,
+        companyId: company.id,
+        metadata: {
+          pagesScraped: scrapedData.pages.length,
+          imagesFound: scrapedData.allImages.length,
+          productsExtracted: analysis.products.length,
+          targetGroupsExtracted: analysis.targetGroups.length,
         },
       })
 
-      if (dnaData.targetGroups?.length) {
-        for (const tg of dnaData.targetGroups) {
+      // Step 3: Save Business DNA
+      await prisma.businessDna.create({
+        data: {
+          companyId: company.id,
+          description: analysis.businessDna.description,
+          history: analysis.businessDna.history,
+          mission: analysis.businessDna.mission,
+          vision: analysis.businessDna.vision,
+          values: JSON.stringify(analysis.businessDna.values || []),
+          toneOfVoice: analysis.businessDna.toneOfVoice,
+          brandPersonality: analysis.businessDna.brandPersonality,
+          usp: analysis.businessDna.usp,
+          competitors: JSON.stringify(analysis.businessDna.competitors || []),
+          industryKeywords: JSON.stringify(analysis.businessDna.industryKeywords || []),
+          email: scrapedData.metadata.emails[0],
+          phone: scrapedData.metadata.phones[0],
+          socialLinks: JSON.stringify(scrapedData.metadata.socialLinks),
+          rawScrapedData: JSON.stringify({
+            pages: scrapedData.pages.length,
+            images: scrapedData.allImages.length,
+          }),
+        },
+      })
+
+      // Step 4: Save Target Groups
+      if (analysis.targetGroups?.length) {
+        for (const tg of analysis.targetGroups) {
           await prisma.targetGroup.create({
             data: {
               companyId: company.id,
-              name: (tg.name as string) || "Target Group",
-              description: tg.description as string,
-              ageRange: tg.ageRange as string,
+              name: tg.name,
+              description: tg.description,
+              ageRange: tg.ageRange,
+              gender: tg.gender,
+              location: tg.location,
+              income: tg.income,
+              education: tg.education,
+              occupation: tg.occupation,
               interests: JSON.stringify(tg.interests || []),
               painPoints: JSON.stringify(tg.painPoints || []),
               goals: JSON.stringify(tg.goals || []),
-              behaviors: JSON.stringify([]),
-              objections: JSON.stringify([]),
+              behaviors: JSON.stringify(tg.behaviors || []),
+              buyingMotivation: tg.buyingMotivation,
+              objections: JSON.stringify(tg.objections || []),
             },
           })
         }
       }
 
-      if (dnaData.products?.length) {
-        for (const p of dnaData.products) {
+      // Step 5: Save Products with Images
+      if (analysis.products?.length) {
+        for (const p of analysis.products) {
           await prisma.product.create({
             data: {
               companyId: company.id,
-              name: (p.name as string) || "Product",
-              description: p.description as string,
-              category: p.category as string,
+              name: p.name,
+              description: p.description,
+              category: p.category,
               features: JSON.stringify(p.features || []),
               benefits: JSON.stringify(p.benefits || []),
-              differentiators: JSON.stringify([]),
+              price: p.price,
+              imageUrl: p.imageUrls?.[0], // Primary image
+              images: JSON.stringify(p.imageUrls || []), // All images
+              targetAudience: p.targetAudience,
+              differentiators: JSON.stringify(p.differentiators || []),
             },
           })
         }
@@ -130,10 +166,11 @@ export async function POST(req: NextRequest) {
         ],
       })
 
+      // Step 6: Update company with final data
       await prisma.company.update({
         where: { id: company.id },
         data: {
-          name: dnaData.companyInfo?.name || company.name,
+          name: companyName,
           logo: scrapedData.metadata.logo,
           scrapingStatus: "COMPLETED",
           scrapedAt: new Date(),

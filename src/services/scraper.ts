@@ -5,6 +5,7 @@ interface ScrapedPage {
   title: string
   content: string
   links: string[]
+  images: string[]  // All images found on the page
 }
 
 interface ScrapedData {
@@ -15,6 +16,7 @@ interface ScrapedData {
     emails: string[]
     phones: string[]
   }
+  allImages: string[]  // Deduplicated list of all images
 }
 
 async function fetchPage(url: string): Promise<string | null> {
@@ -63,6 +65,38 @@ function extractLinks($: cheerio.CheerioAPI, baseUrl: string): string[] {
   })
 
   return [...new Set(links)]
+}
+
+function extractImages($: cheerio.CheerioAPI, baseUrl: string, excludeLogo: boolean = false): string[] {
+  const images: string[] = []
+  const logoSelectors = ['[class*="logo"]', 'header img.logo', '.logo', '#logo']
+
+  $('img').each((_, el) => {
+    const src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-lazy-src')
+    if (!src) return
+
+    // Skip very small images (likely icons)
+    const width = parseInt($(el).attr('width') || '0')
+    const height = parseInt($(el).attr('height') || '0')
+    if (width > 0 && height > 0 && (width < 100 || height < 100)) return
+
+    // Skip logo if requested
+    if (excludeLogo) {
+      const parent = $(el).parent()
+      const isLogo = logoSelectors.some(sel => $(el).is(sel) || parent.is(sel) || parent.closest(sel).length > 0)
+      if (isLogo) return
+    }
+
+    try {
+      const fullUrl = new URL(src, baseUrl).href
+      // Only include common image formats
+      if (fullUrl.match(/\.(jpg|jpeg|png|webp|gif|svg)(\?.*)?$/i)) {
+        images.push(fullUrl)
+      }
+    } catch {}
+  })
+
+  return [...new Set(images)]
 }
 
 function extractMetadata($: cheerio.CheerioAPI, baseUrl: string) {
@@ -118,11 +152,13 @@ export async function scrapeWebsite(websiteUrl: string, maxPages = 10): Promise<
     emails: [],
     phones: [],
   }
+  const allImagesSet = new Set<string>()
 
-  // Priority pages to try
+  // Priority pages to try (especially product/service pages)
   const priorityPaths = [
     '/about', '/chi-siamo', '/about-us', '/azienda',
-    '/servizi', '/services', '/prodotti', '/products',
+    '/servizi', '/services', '/prodotti', '/products', '/product', '/prodotto',
+    '/shop', '/negozio', '/store', '/portfolio',
     '/contatti', '/contact', '/contacts',
   ]
 
@@ -146,8 +182,12 @@ export async function scrapeWebsite(websiteUrl: string, maxPages = 10): Promise<
     const content = extractContent($)
     const links = extractLinks($, url)
     const metadata = extractMetadata($, url)
+    const images = extractImages($, url, true) // Exclude logo from general images
 
-    pages.push({ url, title, content, links })
+    pages.push({ url, title, content, links, images })
+
+    // Collect all images
+    images.forEach(img => allImagesSet.add(img))
 
     // Merge metadata
     Object.assign(allMetadata.socialLinks, metadata.socialLinks)
@@ -167,5 +207,9 @@ export async function scrapeWebsite(websiteUrl: string, maxPages = 10): Promise<
   allMetadata.emails = [...new Set(allMetadata.emails)]
   allMetadata.phones = [...new Set(allMetadata.phones)]
 
-  return { pages, metadata: allMetadata }
+  return {
+    pages,
+    metadata: allMetadata,
+    allImages: Array.from(allImagesSet)
+  }
 }

@@ -109,6 +109,7 @@ model Product {
   benefits         String?  // JSON string
   price            String?
   imageUrl         String?
+  images           String?  // JSON string array of image URLs
 
   targetAudience   String?
   differentiators  String?  // JSON string
